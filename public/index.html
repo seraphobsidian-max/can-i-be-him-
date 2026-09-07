@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lyric Visualizer</title>
+<title>open it po🥺</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
@@ -24,12 +24,10 @@
   }
   #stage.zoom{ transform: scale(1.08); }
 
-  /* Hidden background video source */
   #video {
     display: none;
   }
 
-  /* Red pulse wash for hype section */
   #redwash{
     position:absolute; inset:0;
     background: radial-gradient(circle at 50% 50%, rgba(200,20,30,0.55), rgba(0,0,0,0) 70%);
@@ -60,7 +58,6 @@
     transition: opacity .2s ease, transform .2s ease, color .2s ease;
   }
 
-  /* Glowing and flickering red effect for "CAN I BE HIM?" */
   #lyrics.hype{
     color:#ff2a2a;
     text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000, 0 0 80px rgba(255,0,0,0.8);
@@ -104,11 +101,9 @@
   <div id="watermark">Created by <span>Sinzu</span></div>
 </div>
 
-<!-- MP4 video element configured to play automatically -->
 <video id="video" src="video.mp4" autoplay muted playsinline preload="auto" loop></video>
 
 <script>
-// Timestamps base sa ipinakitang video clip
 const lyrics = [
   { time: 0.0,  text: "" },
   { time: 0.5,  text: "SING IT AGAIN" },
@@ -154,7 +149,6 @@ window.addEventListener("resize", resize);
 let audioCtx, analyser, dataArray, source;
 let isAudioSetup = false;
 
-// Kumuha ng audio frequency data mula sa MP4 video
 function setupAudioGraph() {
   if (isAudioSetup) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -167,7 +161,6 @@ function setupAudioGraph() {
   isAudioSetup = true;
 }
 
-// Visualizer Wave Effect
 function drawWave() {
   requestAnimationFrame(drawWave);
   if (!analyser) return;
@@ -194,7 +187,6 @@ function drawWave() {
   }
 }
 
-// Synced lyrics update loop
 function updateLyrics() {
   const t = video.currentTime;
   let current = lyrics[0];
@@ -211,7 +203,6 @@ function updateLyrics() {
       lyricsEl.textContent = current.text;
       lyricsEl.style.opacity = 1;
 
-      // Hype / Red Flickering trigger
       if (current.hype) {
         lyricsEl.classList.add("hype");
         redwash.classList.add("on");
@@ -230,13 +221,11 @@ function loop() {
   updateLyrics();
 }
 
-// Subukang i-play at i-unmute sa kaunting interaction o pagnakaload ang page
 window.addEventListener("DOMContentLoaded", () => {
   video.play().catch(() => {});
   loop();
 });
 
-// Siguraduhing gagana ang audio sa unang pag-click sa screen (Autoplay policy ng browsers)
 window.addEventListener("click", () => {
   if (video.muted) {
     video.muted = false;
@@ -250,4 +239,4 @@ window.addEventListener("click", () => {
 </script>
 
 </body>
-  </html>
+</html>
