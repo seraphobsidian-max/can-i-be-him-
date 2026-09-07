@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="tl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lyric Visualizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{
+    height:100%;
+    background:#050506;
+    overflow:hidden;
+    font-family:'IBM Plex Mono', monospace;
+  }
+
+  #stage{
+    position:relative;
+    width:100vw; height:100vh;
+    display:flex; align-items:center; justify-content:center;
+    background: radial-gradient(circle at 50% 40%, #14090a 0%, #050506 70%);
+    transition: transform .15s ease-out;
+  }
+  #stage.zoom{ transform: scale(1.08); }
+
+  /* Hidden background video source */
+  #video {
+    display: none;
+  }
+
+  /* Red pulse wash for hype section */
+  #redwash{
+    position:absolute; inset:0;
+    background: radial-gradient(circle at 50% 50%, rgba(200,20,30,0.55), rgba(0,0,0,0) 70%);
+    opacity:0;
+    transition: opacity .25s ease;
+    pointer-events:none;
+    z-index:4;
+  }
+  #redwash.on{ opacity:1; }
+
+  canvas#wave{
+    position:absolute;
+    left:0; top:0;
+    width:100%; height:100%;
+    z-index:1;
+  }
+
+  #lyrics{
+    position:relative;
+    z-index:3;
+    text-align:center;
+    color:#f2f2f2;
+    font-family:'Anton', sans-serif;
+    font-size: clamp(2rem, 7vw, 3.8rem);
+    letter-spacing:.03em;
+    text-shadow: 0 0 18px rgba(255,255,255,.15);
+    padding: 0 24px;
+    transition: opacity .2s ease, transform .2s ease, color .2s ease;
+  }
+
+  /* Glowing and flickering red effect for "CAN I BE HIM?" */
+  #lyrics.hype{
+    color:#ff2a2a;
+    text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000, 0 0 80px rgba(255,0,0,0.8);
+    animation: textFlicker 0.12s infinite alternate;
+  }
+
+  @keyframes textFlicker {
+    0% {
+      opacity: 1;
+      text-shadow: 0 0 25px #ff0000, 0 0 50px #ff0000;
+    }
+    50% {
+      opacity: 0.4;
+      text-shadow: 0 0 5px #ff0000, 0 0 15px rgba(255,0,0,0.5);
+    }
+    100% {
+      opacity: 0.9;
+      text-shadow: 0 0 30px #ff2a2a, 0 0 60px #ff0000;
+    }
+  }
+
+  #watermark{
+    position:absolute;
+    right:18px; bottom:16px;
+    z-index:6;
+    color:#ffffffcc;
+    font-size:.78rem;
+    font-weight:600;
+    letter-spacing:.06em;
+    text-shadow: 0 0 12px rgba(255,255,255,.35);
+  }
+  #watermark span{color:#ff3b3b;}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="wave"></canvas>
+  <div id="redwash"></div>
+  <div id="lyrics"></div>
+  <div id="watermark">Created by <span>Sinzu</span></div>
+</div>
+
+<!-- MP4 video element configured to play automatically -->
+<video id="video" src="video.mp4" autoplay muted playsinline preload="auto" loop></video>
+
+<script>
+// Timestamps base sa ipinakitang video clip
+const lyrics = [
+  { time: 0.0,  text: "" },
+  { time: 0.5,  text: "SING IT AGAIN" },
+  { time: 3.8,  text: "OH, WHEN YOU SING IT AGAIN" },
+  { time: 6.8,  text: "CAN I BE HIM?", hype: true },
+  { time: 9.0,  text: "I SWEAR THAT EVERY" },
+  { time: 10.5, text: "WORD YOU SING" },
+  { time: 11.8, text: "YOU WROTE" },
+  { time: 12.8, text: "YOU WROTE THEM FOR ME" },
+  { time: 16.8, text: "LIKE IT WAS" },
+  { time: 18.0, text: "WAS A PRIVATE SHOW" },
+  { time: 19.5, text: "BUT I KNOW" },
+  { time: 20.5, text: "YOU NEVER SAW ME" },
+  { time: 23.8, text: "WHEN THE LIGHTS COME ON" },
+  { time: 26.0, text: "AND I'M ON MY OWN," },
+  { time: 27.5, text: "WILL YOU BE MY OWN," },
+  { time: 28.5, text: "WILL YOU BE THERE?" },
+  { time: 30.0, text: "BE THERE?" },
+  { time: 33.0, text: "CAN" },
+  { time: 33.8, text: "CAN I BE THE ONE" },
+  { time: 35.0, text: "YOU TALK ABOUT" },
+  { time: 36.8, text: "IN ALL YOUR" },
+  { time: 37.8, text: "STORIES?" },
+  { time: 40.8, text: "CAN I BE" },
+  { time: 42.0, text: "CAN I BE HIM?", hype: true },
+  { time: 44.0, text: "" }
+];
+
+const video = document.getElementById("video");
+const stage = document.getElementById("stage");
+const lyricsEl = document.getElementById("lyrics");
+const redwash = document.getElementById("redwash");
+const canvas = document.getElementById("wave");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+let audioCtx, analyser, dataArray, source;
+let isAudioSetup = false;
+
+// Kumuha ng audio frequency data mula sa MP4 video
+function setupAudioGraph() {
+  if (isAudioSetup) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  source = audioCtx.createMediaElementSource(video);
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  dataArray = new Uint8Array(analyser.frequencyBinCount);
+  source.connect(analyser);
+  analyser.connect(audioCtx.destination);
+  isAudioSetup = true;
+}
+
+// Visualizer Wave Effect
+function drawWave() {
+  requestAnimationFrame(drawWave);
+  if (!analyser) return;
+
+  analyser.getByteFrequencyData(dataArray);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const barCount = dataArray.length;
+  const centerY = canvas.height / 2;
+  const spacing = canvas.width / barCount;
+
+  for (let i = 0; i < barCount; i++) {
+    const amp = dataArray[i] / 255;
+    const height = amp * (canvas.height * 0.35);
+    const x = i * spacing;
+
+    const isHype = lyricsEl.classList.contains("hype");
+    const hue = isHype ? 0 : 220; 
+    const alpha = 0.2 + amp * 0.6;
+    ctx.fillStyle = `hsla(${hue}, 90%, 60%, ${alpha})`;
+
+    ctx.fillRect(x, centerY - height, spacing - 2, height);
+    ctx.fillRect(x, centerY, spacing - 2, height);
+  }
+}
+
+// Synced lyrics update loop
+function updateLyrics() {
+  const t = video.currentTime;
+  let current = lyrics[0];
+
+  for (const line of lyrics) {
+    if (t >= line.time) current = line;
+  }
+
+  if (lyricsEl.dataset.text !== current.text) {
+    lyricsEl.dataset.text = current.text;
+    lyricsEl.style.opacity = 0;
+    
+    setTimeout(() => {
+      lyricsEl.textContent = current.text;
+      lyricsEl.style.opacity = 1;
+
+      // Hype / Red Flickering trigger
+      if (current.hype) {
+        lyricsEl.classList.add("hype");
+        redwash.classList.add("on");
+        stage.classList.add("zoom");
+      } else {
+        lyricsEl.classList.remove("hype");
+        redwash.classList.remove("on");
+        stage.classList.remove("zoom");
+      }
+    }, 100);
+  }
+}
+
+function loop() {
+  requestAnimationFrame(loop);
+  updateLyrics();
+}
+
+// Subukang i-play at i-unmute sa kaunting interaction o pagnakaload ang page
+window.addEventListener("DOMContentLoaded", () => {
+  video.play().catch(() => {});
+  loop();
+});
+
+// Siguraduhing gagana ang audio sa unang pag-click sa screen (Autoplay policy ng browsers)
+window.addEventListener("click", () => {
+  if (video.muted) {
+    video.muted = false;
+  }
+  setupAudioGraph();
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  drawWave();
+}, { once: true });
+</script>
+
+</body>
+  </html>
