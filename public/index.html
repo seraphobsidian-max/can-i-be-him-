@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>open it po🥺</title>
+<title>Lyric Visualizer</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
@@ -90,9 +90,20 @@
     text-shadow: 0 0 12px rgba(255,255,255,.35);
   }
   #watermark span{color:#ff3b3b;}
+
+  /* Overlay para sa touch/click activation sa in-app browsers */
+  #unmuteOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    background: transparent;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
+
+<div id="unmuteOverlay"></div>
 
 <div id="stage">
   <canvas id="wave"></canvas>
@@ -138,6 +149,7 @@ const lyricsEl = document.getElementById("lyrics");
 const redwash = document.getElementById("redwash");
 const canvas = document.getElementById("wave");
 const ctx = canvas.getContext("2d");
+const unmuteOverlay = document.getElementById("unmuteOverlay");
 
 function resize() {
   canvas.width = window.innerWidth;
@@ -151,14 +163,18 @@ let isAudioSetup = false;
 
 function setupAudioGraph() {
   if (isAudioSetup) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  source = audioCtx.createMediaElementSource(video);
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 256;
-  dataArray = new Uint8Array(analyser.frequencyBinCount);
-  source.connect(analyser);
-  analyser.connect(audioCtx.destination);
-  isAudioSetup = true;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    source = audioCtx.createMediaElementSource(video);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    source.connect(analyser);
+    analyser.connect(audioCtx.destination);
+    isAudioSetup = true;
+  } catch (e) {
+    console.log("AudioContext blocked until user interaction.");
+  }
 }
 
 function drawWave() {
@@ -221,21 +237,36 @@ function loop() {
   updateLyrics();
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-  video.play().catch(() => {});
-  loop();
-});
-
-window.addEventListener("click", () => {
-  if (video.muted) {
+// Agad na patakbuhin ang video at animation pagka-open
+function forcePlay() {
+  video.play().then(() => {
+    // Sinubukang i-unmute agad kung pinapayagan ng browser
     video.muted = false;
-  }
+  }).catch(() => {
+    // Kapag binu-block ng FB Lite, itutuloy ang play habang muted
+    video.muted = true;
+    video.play();
+  });
+  loop();
+}
+
+window.addEventListener("DOMContentLoaded", forcePlay);
+
+// Unang tap saanman sa screen ay mag-a-unmute ng audio at magsisimula ng visualizer waveform
+function handleUserUnmute() {
+  video.muted = false;
   setupAudioGraph();
   if (audioCtx && audioCtx.state === 'suspended') {
     audioCtx.resume();
   }
   drawWave();
-}, { once: true });
+  if (unmuteOverlay) {
+    unmuteOverlay.remove();
+  }
+}
+
+window.addEventListener("touchstart", handleUserUnmute, { once: true });
+window.addEventListener("click", handleUserUnmute, { once: true });
 </script>
 
 </body>
